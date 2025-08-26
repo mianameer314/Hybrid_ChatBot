@@ -17,7 +17,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", None)
 
 # --- Backend API URL ---
-API_URL = "https://chatbotbackend-production-8b7c.up.railway.app/chat"
+API_URL = os.getenv("API_URL")
 
 # --- Streamlit Page Config ---
 st.set_page_config(
