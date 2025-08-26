@@ -6,7 +6,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from chatbot.rules import offline_answer         # your existing offline rules
-from chatbot.sentiments import analyze           # your sentiment fn
+from Fastapi_backend.app.services.sentiments import analyze
+
 from chatbot.memory.pg_history import PostgresMessageHistory
 
 # --- LLM (Gemini via LangChain) ---

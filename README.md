@@ -1,173 +1,196 @@
-# 🤖 AI Chatbot with Hybrid Backend + Streamlit Frontend
+# 🤖 AI Chatbot with Sentiment Analysis, Memory & Streamlit Frontend
 
-This document summarizes the **development journey** of our chatbot project, including **backend APIs, frontend (Streamlit) app, caching, database memory, and agent features**.
+This project is a **full-stack AI chatbot** built with:
 
----
-
-## 📌 1. Project Overview
-
-We built an **AI Chatbot system** that integrates:
-
-* **Streamlit Frontend** → For user interaction.
-* **FastAPI Backend** → Handles history, Redis caching, and API requests.
-* **Hybrid AI Providers**:
-  * **Offline rule-based answers**.
-  * **Google Gemini API**.
-  * **HuggingFace Local Model** (distilgpt2).
-  * **LangChain Agent with PostgreSQL memory**.
-* **Redis Integration** → For fast chat history cache.
-* **PostgreSQL** → For persistent message history.
+* **Backend** → FastAPI, PostgreSQL, SQLAlchemy (hosted on Railway or local).
+* **Frontend** → Streamlit (interactive UI for chatting with the bot).
+* **AI Stack** → LangChain Agent (with tools), OpenAI / Gemini LLMs, HuggingFace Transformers.
+* **Extra Intelligence** → Sentiment Analysis with NLTK (VADER).
 
 ---
 
-## 📌 2. Architecture
+## ✨ Features
+
+### 1. 🔄 **Conversational Memory**
+
+* The chatbot **remembers past conversations** within the session.
+* Uses `ConversationBufferMemory` (LangChain).
+* This lets it give **contextual replies** (not just one-off answers).
+
+**Example:**
 
 ```
-[ User ]  
-   ↓ (chat input)  
-[ Streamlit Frontend ]  
-   ↓ REST calls  
-[ FastAPI Backend ]  
-   ├── PostgreSQL (DB history)  
-   ├── Redis (cache)  
-   └── Providers (Gemini / HF / Agent / Offline)
+User: What is FastAPI?  
+Bot: FastAPI is a Python framework for building APIs quickly.  
+User: And who created it?  
+Bot: It was created by Sebastián Ramírez.  
 ```
 
 ---
 
-## 📌 3. Streamlit Frontend (`app.py`)
+### 2. 📊 **Sentiment Analysis Integration**
 
-We designed a modern **chat UI** with:
-
-* **Session state** → Stores unique session IDs.
-* **Sidebar settings** → Choose chatbot mode & manage Redis.
-* **Chat display** → User messages (blue), bot messages (light blue).
-* **Chat input** → Sends messages to backend.
-
-### Features:
-
-1. **Mode Selection**
-   * `Hybrid (Gemini → HF)`
-   * `Gemini only`
-   * `HuggingFace only`
-   * `Agent (LangChain)`
-
-2. **Demo Mode**
-   * Works **offline** with only predefined rules.
-
-3. **Redis Tools (Sidebar)**
-   * ✅ **Check Redis Connection**
-   * 📜 **View Cached History**
-   * 🗑 **Clear Cached Session**
-   * All mapped correctly to backend routes (`/chat/cache/...`).
-
-4. **History Management**
-   * Loads DB history from backend.
-   * Saves each user/bot message into PostgreSQL.
-   * Syncs with Redis cache for fast retrieval.
+* Every user message passes through `sentiments.py` before reaching the agent.
+* Uses **NLTK’s VADER** sentiment analyzer.
+* Labels messages as **Positive, Negative, or Neutral**.
+* Future use cases: customizing bot tone, analytics dashboard, user feedback trends.
 
 ---
 
-## 📌 4. Backend API (FastAPI)
+### 3. ⚙️ **LangChain Agent with Tools**
 
-We created endpoints under `/chat`:
+* The **agent** is initialized in `chatbot/agent.py`.
+* It uses LangChain’s `initialize_agent` to connect with:
 
-### 🔹 History Management
-* `GET /chat/history/{session_id}` → Get DB-stored history.
-* `POST /chat/send` → Save new message.
-* `POST /chat/clear/{session_id}` → Clear DB history.
-
----
-
-## 📌 5. Chatbot Logic
-
-When user sends a message:
-
-1. **Offline Answer** (predefined rules).
-2. If no match → **Gemini Provider**.
-3. If Gemini fails → **HF Provider (distilgpt2)**.
-4. If still no reply → **Fallback message**.
-5. **Agent Mode** (LangChain + Postgres memory) can be chosen separately.
-
-### 💡 Sentiment Analysis
-* Before saving user message, we run `analyze(user_message)` to detect sentiment.
+  * **LLMs** (OpenAI GPT, Gemini).
+  * **Custom tools** (e.g., knowledge base, sentiment analyzer).
+* Currently supports **ReAct-style agent execution**.
 
 ---
 
-## 📌 6. Providers
+### 4. 🖥️ **Streamlit Frontend**
 
-### 🔹 Offline Rules
-* Predefined FAQ-like responses.
-* Example: `"hi"` → `"Hello! How can I help?"`.
+* User-friendly chat UI built with Streamlit.
+* Features:
 
-### 🔹 Gemini Provider
-* Calls Google Gemini API (streaming).
-* Uses **system prompt**: `"Be concise, friendly, and helpful."`.
-
-### 🔹 HF Local Provider
-* Runs a lightweight model (`distilgpt2`) locally.
-
-### 🔹 Agent (LangChain)
-* Custom **LangChain Agent** with **Postgres memory**.
-* Looks at last 10 messages to respond.
+  * Chat bubbles for user & bot.
+  * Sidebar with connection settings.
+  * Auto-scroll & rerun for real-time conversation.
+* Updated from **`st.experimental_rerun()` → `st.rerun()`** (since Streamlit deprecated the old method).
 
 ---
 
-## 📌 7. Redis & DB Integration
+### 5. 🗄️ **Database Persistence (Optional)**
 
-* **PostgreSQL** keeps full history (long-term memory).
-* **Redis** caches recent messages (short-term memory).
-* Users can **view/clear cached history** from sidebar.
-
----
-
-## 📌 8. Final User Flow
-
-1. User opens Streamlit app.
-2. Chooses mode in sidebar.
-3. Sends a message.
-4. Bot response is generated by:
-   * Rules → Gemini → HF → Fallback (based on mode).
-   * Or handled entirely by **Agent (LangChain)**.
-5. Message history:
-   * Saved in **Postgres**.
-   * Cached in **Redis**.
-6. User can manage history/cache from sidebar.
+* Backend supports PostgreSQL via `DATABASE_URL`.
+* Conversations, users, or analytics can be persisted.
+* Local setup uses `postgresql+psycopg2`.
 
 ---
 
-## 📌 9. Example
+### 6. 🌐 **API Backend (FastAPI)**
 
-### User Input:
-```
-Hi bot! Can you help me?
-```
+* Exposes REST endpoints for the chatbot.
+* Example:
 
-### Bot Response:
-```
-Hello! I’m your hybrid chatbot 🤖
-I can answer using rules, Gemini, HuggingFace, or even Agent mode with memory.
-Which do you want to try?
+  * `POST /chat` → send a user message & get reply.
+* Deployed on **Railway** (`API_URL` in `.env`).
+* Streamlit frontend calls this API to get responses.
+
+---
+
+### 7. 🔑 **Multi-LLM Support**
+
+* Supports both **OpenAI** and **Google Gemini**.
+* Keys stored in `.env` →
+
+  ```env
+  OPENAI_API_KEY=sk-...
+  GEMINI_API_KEY=AIza...
+  ```
+* Switch between models via config.
+
+---
+
+## 🛠️ Recent Changes
+
+1. ✅ **Sentiment Module**
+
+   * Moved `sentiments.py` into **backend services** (`app/services/sentiments.py`).
+   * Streamlit frontend imports from backend → `from app.services.sentiments import analyze`.
+
+2. ✅ **Streamlit Rerun Fix**
+
+   * Old: `st.experimental_rerun()` → ❌ deprecated.
+   * New: `st.rerun()` → ✅ works in Streamlit v1.30+.
+
+3. ✅ **LangChain Deprecation Warnings**
+
+   * `agent.run()` → marked for deprecation.
+   * Should migrate to `.invoke()` (future-proof, but not breaking yet).
+
+4. ✅ **Torch Warnings**
+
+   * PyTorch warnings (`_register_pytree_node`) are safe to ignore.
+
+---
+
+## 🚀 How It Works (Step by Step)
+
+1. **User enters a message** in Streamlit.
+2. Message → Sentiment Analyzer (`analyze` in `sentiments.py`).
+3. Sentiment result stored (can be logged, displayed, or affect tone).
+4. Message → LangChain Agent (`agent.py`).
+5. Agent queries the chosen LLM (OpenAI/Gemini) & tools.
+6. Reply returned → displayed in Streamlit chat bubble.
+7. Memory ensures next turn keeps context.
+
+---
+
+## 📊 Architecture Diagram (Mermaid)
+
+```mermaid
+flowchart TD
+    A[👤 User in Streamlit] --> B[📊 Sentiment Analyzer (VADER)]
+    B --> C[⚙️ LangChain Agent]
+    C --> D[🤖 LLMs (OpenAI / Gemini)]
+    D --> C
+    C --> E[💬 Bot Reply]
+    E --> A
 ```
 
 ---
 
-## 📌 10. Key Features Recap
+## 🖥️ Setup & Run
 
-✅ Hybrid AI workflow (rules → Gemini → HuggingFace → Agent).  
-✅ Streamlit chat UI with styled messages.  
-✅ Session-based memory using PostgreSQL.  
-✅ Redis integration for fast cache + history tools.  
-✅ LangChain Agent with memory.  
-✅ Sentiment analysis on user messages.  
-✅ Sidebar controls for modes & Redis management.  
+### 1. Clone the Repo
+
+```bash
+git clone https://github.com/your-repo/chatbot_project.git
+cd chatbot_project
+```
+
+### 2. Create Virtual Environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Mac/Linux
+.venv\Scripts\activate      # Windows
+```
+
+### 3. Install Requirements
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Setup `.env` File
+
+```env
+OPENAI_API_KEY=your_openai_key
+GEMINI_API_KEY=your_gemini_key
+DATABASE_URL=postgresql+psycopg2://postgres:mypass@localhost:5432/chatbot_agent
+API_URL=https://chatbotbackend-production-xxxx.up.railway.app/chat
+```
+
+### 5. Run Backend (FastAPI)
+
+```bash
+uvicorn app.main:app --reload
+```
+
+### 6. Run Frontend (Streamlit)
+
+```bash
+cd "StreamLit Frontend"
+streamlit run app.py
+```
 
 ---
 
-✨ This makes our chatbot:
+## 📌 Next Steps (Future Improvements)
 
-* **Fast** (Redis cache),  
-* **Persistent** (DB history),  
-* **Flexible** (multiple AI providers),  
-* **Smart** (Agent + LangChain),  
-* **User-friendly** (Streamlit UI).  
+* Migrate from **LangChain Agent → LangGraph** for more robust state handling.
+* Store **sentiment results in DB** for analytics dashboards.
+* Add **user authentication** (different users, personalized memory).
+* Improve UI with themes & conversation history export.

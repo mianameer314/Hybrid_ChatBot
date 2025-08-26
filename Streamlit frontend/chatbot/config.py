@@ -11,11 +11,14 @@ class Settings(BaseSettings):
     # Redis (for caching / short-term memory)
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    API_URL: str | None = None
+
     # App metadata
     APP_TITLE: str = "AI Chatbot (Offline + Gemini + Memory)"
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()
