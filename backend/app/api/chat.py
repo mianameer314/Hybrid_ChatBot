@@ -11,12 +11,12 @@ import asyncio
 from datetime import datetime
 from io import BytesIO
 
-from app.core.database import get_db
+from app.core.database import get_db, get_db_session
 from app.core.cache import get_cache
 from app.core.config import settings
 from app.services.agent_system import agent_system
 from app.services.sentiment_analysis import analyze_sentiment
-from app.services.llm_providers import llm_manager
+from app.services.llm_providers import llm_manager, QuotaExceededException, ProviderUnavailableException
 from app.models import ChatSession, ChatMessage
 from pydantic import BaseModel
 import logging
@@ -113,11 +113,41 @@ async def send_message(
                 "content": request.message
             })
             
-            # Generate response
-            response = await llm_manager.generate_response(
-                messages=formatted_messages,
-                provider_name=request.llm_provider
-            )
+            # Generate response with fallback
+            try:
+                llm_result = await llm_manager.generate_response_with_fallback(
+                    messages=formatted_messages,
+                    provider_name=request.llm_provider
+                )
+                response = llm_result['response']
+                model_used = llm_result['model_used']
+                fallback_used = llm_result.get('fallback_used', False)
+                
+            except QuotaExceededException as e:
+                logger.error(f"Quota exceeded for all providers: {e.message}")
+                raise HTTPException(
+                    status_code=429, 
+                    detail={
+                        "error": "API quota exceeded",
+                        "message": "All available AI providers have exceeded their quotas. Please try again later or check your API billing.",
+                        "provider": e.provider,
+                        "suggested_actions": [
+                            "Check your OpenAI billing and usage at https://platform.openai.com/usage",
+                            "Consider using Gemini instead (get a free API key at https://aistudio.google.com/app/apikey)",
+                            "Try again in a few minutes"
+                        ]
+                    }
+                )
+            except ProviderUnavailableException as e:
+                logger.error(f"Provider unavailable: {e.message}")
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error": "Provider unavailable",
+                        "message": f"AI provider is temporarily unavailable: {e.message}",
+                        "provider": e.provider
+                    }
+                )
             
             processing_time = (datetime.now() - start_time).total_seconds()
             
@@ -125,7 +155,8 @@ async def send_message(
                 'response': response,
                 'processing_time': processing_time,
                 'session_id': session_id,
-                'model_used': request.llm_provider or settings.DEFAULT_LLM
+                'model_used': model_used,
+                'fallback_used': fallback_used
             }
         
         # Analyze sentiment in background
@@ -160,7 +191,7 @@ async def stream_message(request: ChatRequest):
                 provider = await llm_manager.get_provider(request.llm_provider)
                 
                 # Get recent messages
-                with get_db() as db:
+                with get_db_session() as db:
                     messages = db.query(ChatMessage).filter(
                         ChatMessage.session_id == session_id
                     ).order_by(ChatMessage.created_at.desc()).limit(10).all()
@@ -396,7 +427,7 @@ async def analyze_user_message_sentiment(message: str, session_id: str):
         sentiment_result = await analyze_sentiment(message, use_hf=True)
         
         # Update the latest user message with sentiment data
-        with get_db() as db:
+        with get_db_session() as db:
             latest_msg = db.query(ChatMessage).filter(
                 ChatMessage.session_id == session_id,
                 ChatMessage.role == "user",
@@ -407,7 +438,7 @@ async def analyze_user_message_sentiment(message: str, session_id: str):
                 latest_msg.sentiment_label = sentiment_result.get('label')
                 latest_msg.sentiment_score = sentiment_result.get('score')
                 latest_msg.emotion = sentiment_result.get('emotion')
-                db.commit()
+                # Note: commit is handled by the context manager
                 
     except Exception as e:
         logger.error(f"Error in background sentiment analysis: {e}")

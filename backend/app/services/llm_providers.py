@@ -8,6 +8,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 import asyncio
+import re
 
 # HuggingFace imports
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
@@ -24,6 +25,38 @@ except ImportError:
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Custom exceptions for better error handling
+class QuotaExceededException(Exception):
+    """Raised when API quota is exceeded"""
+    def __init__(self, provider: str, message: str = None):
+        self.provider = provider
+        self.message = message or f"{provider} API quota exceeded"
+        super().__init__(self.message)
+
+class ProviderUnavailableException(Exception):
+    """Raised when a provider is temporarily unavailable"""
+    def __init__(self, provider: str, message: str = None):
+        self.provider = provider
+        self.message = message or f"{provider} provider is temporarily unavailable"
+        super().__init__(self.message)
+
+def is_quota_error(error_message: str) -> bool:
+    """Check if error message indicates quota exceeded"""
+    quota_keywords = [
+        "quota", "limit", "rate limit", "insufficient_quota", 
+        "billing", "exceeded", "429", "too many requests"
+    ]
+    error_lower = error_message.lower()
+    return any(keyword in error_lower for keyword in quota_keywords)
+
+def is_auth_error(error_message: str) -> bool:
+    """Check if error message indicates authentication issue"""
+    auth_keywords = [
+        "unauthorized", "401", "invalid api key", "authentication", "api key"
+    ]
+    error_lower = error_message.lower()
+    return any(keyword in error_lower for keyword in auth_keywords)
 
 class BaseLLMProvider(ABC):
     """Base class for all LLM providers"""
@@ -117,8 +150,16 @@ class OpenAIProvider(BaseLLMProvider):
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            logger.error(f"OpenAI chat completion error: {e}")
-            raise
+            error_str = str(e)
+            logger.error(f"OpenAI chat completion error: {error_str}")
+            
+            # Check if it's a quota error
+            if is_quota_error(error_str):
+                raise QuotaExceededException("OpenAI", error_str)
+            elif is_auth_error(error_str):
+                raise ProviderUnavailableException("OpenAI", f"Authentication error: {error_str}")
+            else:
+                raise
     
     async def stream_chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> AsyncGenerator[str, None]:
         """Stream chat completion"""
@@ -359,6 +400,77 @@ class LLMProviderManager:
         
         return self.providers[provider_name]
     
+    async def generate_response_with_fallback(
+        self, 
+        messages: List[Dict[str, str]], 
+        provider_name: str = None,
+        stream: bool = False,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Generate response using specified provider with automatic fallback"""
+        provider_name = provider_name or self.default_provider
+        
+        # Define fallback order
+        fallback_order = []
+        if provider_name == "openai":
+            fallback_order = ["openai", "gemini", "huggingface"]
+        elif provider_name == "gemini":
+            fallback_order = ["gemini", "openai", "huggingface"]
+        else:
+            fallback_order = ["huggingface", "gemini", "openai"]
+        
+        last_error = None
+        
+        for current_provider in fallback_order:
+            try:
+                logger.info(f"Attempting to use {current_provider} provider")
+                
+                # Skip providers without API keys
+                if current_provider == "openai" and not settings.OPENAI_API_KEY:
+                    logger.warning("OpenAI API key not available, skipping")
+                    continue
+                elif current_provider == "gemini" and not settings.GEMINI_API_KEY:
+                    logger.warning("Gemini API key not available, skipping")
+                    continue
+                
+                provider = await self.get_provider(current_provider)
+                
+                if stream:
+                    response = provider.stream_chat_completion(messages, **kwargs)
+                else:
+                    response = await provider.chat_completion(messages, **kwargs)
+                
+                logger.info(f"Successfully generated response using {current_provider}")
+                return {
+                    'response': response,
+                    'model_used': current_provider,
+                    'fallback_used': current_provider != provider_name
+                }
+                
+            except QuotaExceededException as e:
+                logger.warning(f"{current_provider} quota exceeded: {e.message}")
+                last_error = e
+                continue
+                
+            except ProviderUnavailableException as e:
+                logger.warning(f"{current_provider} unavailable: {e.message}")
+                last_error = e
+                continue
+                
+            except Exception as e:
+                logger.error(f"Error with {current_provider} provider: {str(e)}")
+                last_error = e
+                continue
+        
+        # If all providers failed, raise the last error
+        if last_error:
+            if isinstance(last_error, (QuotaExceededException, ProviderUnavailableException)):
+                raise last_error
+            else:
+                raise Exception(f"All LLM providers failed. Last error: {str(last_error)}")
+        else:
+            raise Exception("No LLM providers available")
+    
     async def generate_response(
         self, 
         messages: List[Dict[str, str]], 
@@ -366,13 +478,11 @@ class LLMProviderManager:
         stream: bool = False,
         **kwargs
     ) -> str:
-        """Generate response using specified provider"""
-        provider = await self.get_provider(provider_name)
-        
-        if stream:
-            return provider.stream_chat_completion(messages, **kwargs)
-        else:
-            return await provider.chat_completion(messages, **kwargs)
+        """Generate response using specified provider (legacy method)"""
+        result = await self.generate_response_with_fallback(
+            messages, provider_name, stream, **kwargs
+        )
+        return result['response']
 
 # Global provider manager
 llm_manager = LLMProviderManager()

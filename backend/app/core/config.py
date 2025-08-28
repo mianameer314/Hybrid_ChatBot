@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_KEY: Optional[str] = None
     
     # Model Settings
-    DEFAULT_LLM: str = "openai"  # openai, gemini, huggingface
+    DEFAULT_LLM: str = "gemini"  # openai, gemini, huggingface (changed to gemini due to better free tier)
     OPENAI_MODEL: str = "gpt-4o-mini"
     GEMINI_MODEL: str = "gemini-1.5-flash"
     HUGGINGFACE_MODEL: str = "microsoft/DialoGPT-medium"
