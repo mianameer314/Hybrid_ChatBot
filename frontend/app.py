@@ -179,12 +179,19 @@ with col2:
     
     # Model selection
     st.subheader("🤖 AI Model")
+    
+    # Show quota warning for OpenAI
+    st.info("💡 **Tip:** Gemini is set as default due to OpenAI quota issues. Gemini offers free usage!")
+    
     llm_provider = st.selectbox(
         "LLM Provider",
-        options=["openai", "gemini", "huggingface"],
+        options=["gemini", "openai", "huggingface"],
         index=0,
-        help="Choose the AI model to use"
+        help="Choose the AI model to use (Gemini is recommended - free tier available)"
     )
+    
+    if llm_provider == "openai":
+        st.warning("⚠️ OpenAI may have quota limits. Consider switching to Gemini if you see errors.")
     
     use_agent = st.checkbox(
         "Use Agent Mode",
@@ -346,8 +353,11 @@ with col1:
                     with chat_container:
                         display_message(assistant_message)
                     
-                    # Show processing info
-                    st.info(f"⚡ Response generated in {response['processing_time']:.2f}s using {response['model_used']}")
+                    # Show processing info with fallback indication
+                    success_msg = f"⚡ Response generated in {response['processing_time']:.2f}s using {response['model_used']}"
+                    if response.get('fallback_used'):
+                        success_msg += " (⚠️ Fallback provider used)"
+                    st.info(success_msg)
                     
                     if response.get("intermediate_steps"):
                         with st.expander("🔍 Agent Steps"):
@@ -355,7 +365,29 @@ with col1:
                                 st.write(step)
                 
                 else:
-                    st.error(f"Error: {response['error']}")
+                    # Handle different types of errors
+                    error_detail = response.get('detail', response.get('error', 'Unknown error'))
+                    
+                    # Check if it's a quota error
+                    if isinstance(error_detail, dict) and error_detail.get('error') == 'API quota exceeded':
+                        st.error("🚨 **API Quota Exceeded**")
+                        st.warning(error_detail.get('message', 'API quota exceeded'))
+                        
+                        if error_detail.get('suggested_actions'):
+                            st.info("**💡 Suggested Actions:**")
+                            for i, action in enumerate(error_detail['suggested_actions'], 1):
+                                st.write(f"{i}. {action}")
+                        
+                        # Add helpful link
+                        st.markdown("**🔗 Quick Fix:** [Get a FREE Gemini API Key](https://aistudio.google.com/app/apikey) (recommended)")
+                    
+                    elif "Agent stopped due to iteration limit" in str(error_detail):
+                        st.error("🔄 **Agent Timeout**")
+                        st.warning("The AI agent stopped due to processing limits. This usually happens when there are API quota issues.")
+                        st.info("💡 **Try:** Switch to Gemini in the settings (free tier available) or try a simpler question.")
+                    
+                    else:
+                        st.error(f"❌ **Error:** {error_detail}")
                     
             except Exception as e:
                 st.error(f"Failed to get response: {str(e)}")
