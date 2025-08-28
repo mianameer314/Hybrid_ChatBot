@@ -30,6 +30,9 @@ You can:
 3. Remember conversation history and context
 4. Access structured knowledge and FAQ information
 5. Process and understand uploaded documents and web content
+6. **Summarize and analyze CV/resume documents** - When users ask about their CV, resume, or uploaded PDFs, always use the document_search tool first
+
+**IMPORTANT**: When users mention "CV", "resume", "my pdf", or similar terms, ALWAYS use the document_search tool to look for their uploaded documents.
 
 Available tools:
 {tools}
@@ -196,19 +199,80 @@ class DocumentSearchTool(BaseTool):
     """Tool for searching uploaded documents"""
     
     name: str = "document_search"
-    description: str = "Search through uploaded documents (PDFs, Word docs, text files) for relevant information."
+    description: str = "Search through uploaded documents (PDFs, Word docs, text files) for relevant information. Use this for CV, resume, or document-specific queries."
     
     async def _arun(self, query: str) -> str:
         """Async implementation"""
         try:
-            # Search documents in vector store
-            result = await rag_system.query(query, k=3)
+            # First try to get documents directly from database
+            from app.core.database import get_db_session
+            from app.models import Document as DBDocument
+            
+            # Check if this is a CV/resume request
+            is_cv_request = any(term in query.lower() for term in ['cv', 'resume', 'curriculum', 'vitae'])
+            
+            with get_db_session() as db:
+                if is_cv_request:
+                    # Look for PDF documents that might be CVs
+                    docs = db.query(DBDocument).filter(
+                        DBDocument.file_type == 'pdf'
+                    ).all()
+                    
+                    if docs:
+                        response_parts = [f"Found {len(docs)} PDF document(s) that could be your CV:\n"]
+                        
+                        for doc in docs:
+                            response_parts.append(f"📄 **{doc.original_name}**")
+                            if doc.content:
+                                # Show a preview of the content
+                                content_preview = doc.content[:1000] + "..." if len(doc.content) > 1000 else doc.content
+                                response_parts.append(f"\n**Content:**\n{content_preview}")
+                            else:
+                                response_parts.append("\n*Content not yet processed*")
+                            response_parts.append(f"\n**File Details:**")
+                            response_parts.append(f"- Type: {doc.file_type.upper()}")
+                            response_parts.append(f"- Size: {doc.file_size} bytes")
+                            response_parts.append(f"- Status: {doc.processing_status}")
+                            response_parts.append(f"- Uploaded: {doc.upload_date}")
+                            response_parts.append("\n" + "-"*50 + "\n")
+                        
+                        return "\n".join(response_parts)
+                    else:
+                        return "No PDF documents found. Please upload your CV/resume first."
+                
+                else:
+                    # Regular document search
+                    docs = db.query(DBDocument).all()
+                    if docs:
+                        response_parts = [f"Found {len(docs)} uploaded document(s):\n"]
+                        
+                        for doc in docs:
+                            response_parts.append(f"📄 **{doc.original_name}** ({doc.file_type.upper()})")
+                            if doc.content and query.lower() in doc.content.lower():
+                                response_parts.append(f"  ✅ Contains relevant content")
+                                # Find relevant snippet
+                                content_lower = doc.content.lower()
+                                query_lower = query.lower()
+                                idx = content_lower.find(query_lower)
+                                if idx != -1:
+                                    start = max(0, idx - 100)
+                                    end = min(len(doc.content), idx + len(query) + 100)
+                                    snippet = doc.content[start:end]
+                                    response_parts.append(f"  Relevant snippet: ...{snippet}...")
+                            response_parts.append("")
+                        
+                        return "\n".join(response_parts)
+                    else:
+                        return "No documents found in the database."
+            
+            # Fallback to vector search if database search doesn't work
+            result = await rag_system.query(query, k=5)
             
             # Filter for document sources only
             doc_results = [doc for doc in result['retrieved_documents'] if doc['source'] == 'document']
             
             if doc_results:
-                response_parts = [f"Found {len(doc_results)} relevant documents:\n"]
+                response_parts = [f"Found {len(doc_results)} relevant documents via vector search:\n"]
                 
                 for doc in doc_results:
                     response_parts.append(f"- Document ID: {doc['metadata'].get('document_id', 'Unknown')}")
