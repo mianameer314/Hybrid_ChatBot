@@ -1,7 +1,7 @@
 """
 Configuration Management for Agentic Chatbot
 """
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
 

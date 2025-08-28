@@ -443,7 +443,7 @@ class AgentSystem:
                     emotion=sentiment_result.get('emotion'),
                     model_used=llm_provider,
                     processing_time=processing_time,
-                    metadata=metadata
+                    extra_metadata=metadata
                 )
                 db.add(user_msg)
                 
@@ -454,7 +454,7 @@ class AgentSystem:
                     content=assistant_response,
                     model_used=llm_provider,
                     processing_time=processing_time,
-                    metadata=metadata
+                    extra_metadata=metadata
                 )
                 db.add(assistant_msg)
                 

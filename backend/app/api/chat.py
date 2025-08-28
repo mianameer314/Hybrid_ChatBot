@@ -13,13 +13,16 @@ from io import BytesIO
 
 from app.core.database import get_db
 from app.core.cache import get_cache
+from app.core.config import settings
 from app.services.agent_system import agent_system
 from app.services.sentiment_analysis import analyze_sentiment
 from app.services.llm_providers import llm_manager
 from app.models import ChatSession, ChatMessage
 from pydantic import BaseModel
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Pydantic models for request/response
 class ChatRequest(BaseModel):

@@ -20,7 +20,7 @@ class ChatSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_active = Column(Boolean, default=True)
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     # Relationships
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
@@ -45,7 +45,7 @@ class ChatMessage(Base):
     processing_time = Column(Float, nullable=True)  # response time in seconds
     
     created_at = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     # Relationships
     session = relationship("ChatSession", back_populates="messages")
@@ -76,7 +76,7 @@ class Document(Base):
     creation_date = Column(DateTime, nullable=True)
     language = Column(String(10), nullable=True)
     
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     # Relationships
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
@@ -99,7 +99,7 @@ class DocumentChunk(Base):
     embedding_model = Column(String(100), nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     # Relationships
     document = relationship("Document", back_populates="chunks")
@@ -128,7 +128,7 @@ class WebSource(Base):
     keywords = Column(JSON, nullable=True)
     language = Column(String(10), nullable=True)
     
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     # Relationships
     chunks = relationship("WebChunk", back_populates="source", cascade="all, delete-orphan")
@@ -150,7 +150,7 @@ class WebChunk(Base):
     embedding_model = Column(String(100), nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)
     
     # Relationships
     source = relationship("WebSource", back_populates="chunks")
@@ -181,4 +181,4 @@ class KnowledgeBase(Base):
     access_count = Column(Integer, default=0)
     last_accessed = Column(DateTime, nullable=True)
     
-    metadata = Column(JSON, nullable=True)
+    extra_metadata = Column(JSON, nullable=True)

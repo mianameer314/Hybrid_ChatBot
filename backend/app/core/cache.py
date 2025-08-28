@@ -26,8 +26,8 @@ class RedisCache:
             # Test connection
             self.redis_client.ping()
             logger.info("Redis connection established")
-        except redis.RedisError as e:
-            logger.warning(f"Redis connection failed: {e}")
+        except (redis.RedisError, ConnectionError, OSError) as e:
+            logger.warning(f"Redis connection failed: {e}. Cache will be disabled.")
             self.redis_client = None
     
     def is_available(self) -> bool:

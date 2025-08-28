@@ -454,7 +454,7 @@ class RAGSystem:
                     content=doc_data['content'],
                     title=doc_data['metadata'].get('title', ''),
                     author=doc_data['metadata'].get('author', ''),
-                    metadata=doc_data['metadata'],
+                    extra_metadata=doc_data['metadata'],
                     processing_status='completed',
                     processed_at=datetime.utcnow()
                 )
