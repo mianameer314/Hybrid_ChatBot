@@ -441,8 +441,7 @@ class AgentSystem:
                     verbose=settings.DEBUG,
                     handle_parsing_errors=True,
                     max_iterations=2,  # Reduced from 3
-                    max_execution_time=30,  # Reduced from 60
-                    early_stopping_method="generate"  # Stop early if needed
+                    max_execution_time=30  # Reduced from 60
                 )
                 
                 self.agents[agent_key] = agent_executor
