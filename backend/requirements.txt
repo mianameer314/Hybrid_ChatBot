@@ -56,7 +56,7 @@ pytest-asyncio
 httpx
 
 # CORS
-python-cors
+fastapi-cors
 
 # File handling
 Pillow
