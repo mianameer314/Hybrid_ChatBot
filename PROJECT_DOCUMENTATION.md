@@ -52,7 +52,7 @@ We decided to create a system that:
 Think of our system as a **smart orchestra conductor** that coordinates different musicians (AI models, databases, tools) to create beautiful music (intelligent conversations).
 
 ```
-Frontend (React/Next.js)
+Frontend (streamlit)
     ↓
 API Gateway (FastAPI)
     ↓
@@ -86,7 +86,7 @@ External Services (Redis, File Storage)
 ### Key Components Explained
 
 #### 1. **Frontend Layer**
-- **Technology**: React/Next.js with modern UI components
+- **Technology**: streamlit with modern UI components
 - **Purpose**: Beautiful, responsive interface for users
 - **Features**: Real-time chat, file uploads, settings, analytics
 
