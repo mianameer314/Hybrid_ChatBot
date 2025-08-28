@@ -55,7 +55,7 @@ app.add_middleware(
 )
 
 # Root endpoint
-@app.get("/")
+@app.get("/", tags=["Root"])
 def read_root():
     return {
         "message": "Agentic Chatbot Backend API",
