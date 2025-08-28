@@ -232,7 +232,7 @@ with col2:
     if uploaded_file is not None and st.button("📤 Process Document"):
         with st.spinner("Processing document..."):
             try:
-                files = {"file": uploaded_file.getvalue()}
+                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
                 data = {"filename": uploaded_file.name}
                 result = call_api("/documents/upload", method="POST", data=data, files=files)
                 
