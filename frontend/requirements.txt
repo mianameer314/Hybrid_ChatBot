@@ -1,21 +1,21 @@
 # Streamlit and web UI
-streamlit==1.29.0
+streamlit
 
 # HTTP requests
-requests==2.31.0
+requests
 
 # Data visualization
-plotly==5.17.0
-pandas==2.1.4
+plotly
+pandas
 
 # Environment variables
-python-dotenv==1.0.0
+python-dotenv
 
 # Date and time
-python-dateutil==2.8.2
+python-dateutil
 
 # JSON handling
-orjson==3.9.10
+orjson
 
 # Additional utilities
-uuid==1.30
+uuid
