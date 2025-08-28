@@ -137,16 +137,7 @@ Bot: It was created by Sebastián Ramírez.
 
 ---
 
-## 📊 Architecture Diagram (Mermaid)
 
-```mermaid
-flowchart TD
-    A[👤 User in Streamlit] --> B[📊 Sentiment Analyzer (VADER)]
-    B --> C[⚙️ LangChain Agent]
-    C --> D[🤖 LLMs (OpenAI / Gemini)]
-    D --> C
-    C --> E[💬 Bot Reply]
-    E --> A
 ```
 
 ---
