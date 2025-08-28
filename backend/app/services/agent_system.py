@@ -195,6 +195,110 @@ class WebSearchTool(BaseTool):
         """Sync implementation"""
         return asyncio.run(self._arun(query))
 
+class WebScrapingTool(BaseTool):
+    """Tool for scraping and analyzing web content from URLs"""
+    
+    name: str = "web_scraping"
+    description: str = "Scrape and analyze content from web URLs including GitHub repositories, websites, and other online resources. Use this when users provide a URL to analyze."
+    
+    async def _arun(self, url: str) -> str:
+        """Async implementation"""
+        try:
+            # Import here to avoid circular imports
+            from app.services.rag_system import rag_system
+            import re
+            
+            # Clean and validate URL
+            url = url.strip()
+            if not url.startswith(('http://', 'https://')):
+                if '://' not in url:
+                    url = f"https://{url}"
+            
+            # Check if it's a valid URL format
+            url_pattern = re.compile(
+                r'^https?://'  # http:// or https://
+                r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+'  # domain...
+                r'(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # host...
+                r'localhost|'  # localhost...
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+                r'(?::\d+)?'  # optional port
+                r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+            
+            if not url_pattern.match(url):
+                return f"Invalid URL format: {url}. Please provide a valid URL starting with http:// or https://"
+            
+            logger.info(f"Scraping URL: {url}")
+            
+            # Initialize RAG system if needed
+            if not rag_system.is_initialized:
+                await rag_system.initialize()
+            
+            # Use the web scraper from RAG system
+            scraped_data = await rag_system.web_scraper.scrape_url(url)
+            
+            if not scraped_data or 'content' not in scraped_data:
+                return f"Could not scrape content from {url}. The URL might be inaccessible or protected."
+            
+            # Format the response with analysis
+            response_parts = []
+            response_parts.append(f"**Analysis of: {url}**\n")
+            
+            if scraped_data.get('title'):
+                response_parts.append(f"**Title:** {scraped_data['title']}")
+            
+            if scraped_data.get('meta_description'):
+                response_parts.append(f"**Description:** {scraped_data['meta_description']}")
+            
+            # Analyze the content
+            content = scraped_data['content']
+            if content:
+                # Basic content analysis
+                word_count = len(content.split())
+                response_parts.append(f"**Word Count:** {word_count}")
+                
+                # For GitHub repositories, look for specific patterns
+                if 'github.com' in url.lower():
+                    response_parts.append("\n**GitHub Repository Analysis:**")
+                    
+                    # Look for README patterns
+                    if 'readme' in content.lower():
+                        response_parts.append("✅ Contains README information")
+                    
+                    # Look for common development keywords
+                    tech_keywords = ['python', 'javascript', 'react', 'node', 'api', 'frontend', 'backend', 'database', 'machine learning', 'ai', 'chatbot']
+                    found_tech = []
+                    for keyword in tech_keywords:
+                        if keyword in content.lower():
+                            found_tech.append(keyword.title())
+                    
+                    if found_tech:
+                        response_parts.append(f"**Technologies mentioned:** {', '.join(found_tech[:10])}")
+                
+                # Content preview (first 500 characters)
+                content_preview = content[:500] + "..." if len(content) > 500 else content
+                response_parts.append(f"\n**Content Preview:**\n{content_preview}")
+                
+                # Try to add to knowledge base for future reference
+                try:
+                    await rag_system.add_web_content([url])
+                    response_parts.append("\n✅ Content has been added to knowledge base for future reference")
+                except Exception as e:
+                    logger.warning(f"Could not add to knowledge base: {e}")
+                    response_parts.append("\n⚠️ Content analyzed but not saved to knowledge base")
+            
+            else:
+                response_parts.append("**Content:** No readable content found")
+            
+            return "\n".join(response_parts)
+            
+        except Exception as e:
+            logger.error(f"Web scraping error: {e}")
+            return f"Error analyzing URL: {str(e)}. Please make sure the URL is accessible and try again."
+    
+    def _run(self, url: str) -> str:
+        """Sync implementation"""
+        return asyncio.run(self._arun(url))
+
 class DocumentSearchTool(BaseTool):
     """Tool for searching uploaded documents"""
     
@@ -351,6 +455,7 @@ class AgentSystem:
             SentimentTool(),
             KnowledgeBaseTool(),
             WebSearchTool(),
+            WebScrapingTool(),
             DocumentSearchTool()
         ]
     
