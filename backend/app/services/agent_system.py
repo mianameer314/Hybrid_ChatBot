@@ -464,31 +464,68 @@ class AgentSystem:
         start_time = datetime.now()
         
         try:
-            # Get agent
-            agent = await self.get_agent(session_id, llm_provider)
+            # Check if this is a CV/resume request - handle directly to avoid agent complexity
+            is_cv_request = any(term in message.lower() for term in ['cv', 'resume', 'curriculum', 'vitae', 'pdf', 'document'])
             
-            # Add context if provided
-            input_data = {"input": message}
-            if context:
-                input_data["context"] = json.dumps(context)
-            
-            # Run agent with timeout
-            try:
-                result = await asyncio.wait_for(
-                    asyncio.to_thread(agent.invoke, input_data),
-                    timeout=25  # 25 second timeout
-                )
-            except asyncio.TimeoutError:
-                logger.warning(f"Agent timeout for session {session_id}")
-                # Fallback to direct LLM call
-                direct_result = await llm_manager.generate_response_with_fallback(
-                    messages=[{"role": "user", "content": message}],
-                    provider_name=llm_provider
-                )
-                result = {
-                    'output': f"{direct_result['response']}\n\n*Note: Used direct response due to agent timeout*",
-                    'intermediate_steps': []
-                }
+            if is_cv_request:
+                logger.info(f"Direct CV processing for session {session_id}")
+                try:
+                    # Handle CV request directly
+                    document_tool = DocumentSearchTool()
+                    doc_result = await document_tool._arun(message)
+                    
+                    # If we found documents, generate a summary
+                    if "Found" in doc_result and "PDF document" in doc_result:
+                        # Extract document content from the result
+                        summary_prompt = f"Based on the following CV/Resume content, provide a comprehensive summary:\n\n{doc_result}\n\nPlease provide a professional summary highlighting key qualifications, experience, and skills."
+                        
+                        summary_result = await llm_manager.generate_response_with_fallback(
+                            messages=[{"role": "user", "content": summary_prompt}],
+                            provider_name=llm_provider
+                        )
+                        
+                        result = {
+                            'output': f"**CV/Resume Summary:**\n\n{summary_result['response']}\n\n**Document Details:**\n{doc_result}",
+                            'intermediate_steps': []
+                        }
+                    else:
+                        result = {
+                            'output': doc_result,
+                            'intermediate_steps': []
+                        }
+                        
+                except Exception as e:
+                    logger.error(f"Direct CV processing error: {e}")
+                    result = {
+                        'output': f"I found an issue processing your CV request: {str(e)}. Please make sure you've uploaded a PDF document.",
+                        'intermediate_steps': []
+                    }
+            else:
+                # Regular agent processing for non-CV requests
+                agent = await self.get_agent(session_id, llm_provider)
+                
+                # Add context if provided
+                input_data = {"input": message}
+                if context:
+                    input_data["context"] = json.dumps(context)
+                
+                # Run agent with timeout
+                try:
+                    result = await asyncio.wait_for(
+                        asyncio.to_thread(agent.invoke, input_data),
+                        timeout=20  # Reduced timeout
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(f"Agent timeout for session {session_id}")
+                    # Fallback to direct LLM call
+                    direct_result = await llm_manager.generate_response_with_fallback(
+                        messages=[{"role": "user", "content": message}],
+                        provider_name=llm_provider
+                    )
+                    result = {
+                        'output': f"{direct_result['response']}\n\n*Note: Used direct response due to agent timeout*",
+                        'intermediate_steps': []
+                    }
             
             processing_time = (datetime.now() - start_time).total_seconds()
             
