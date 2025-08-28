@@ -573,10 +573,56 @@ class AgentSystem:
         start_time = datetime.now()
         
         try:
+            # Check if this is a URL analysis request - handle directly to avoid agent complexity
+            import re
+            url_pattern = re.compile(
+                r'https?://[^\s]+|www\.[^\s]+|github\.com/[^\s]+', 
+                re.IGNORECASE
+            )
+            urls_in_message = url_pattern.findall(message)
+            is_url_request = bool(urls_in_message) or any(term in message.lower() for term in ['analyze url', 'github', 'website', 'web source', 'scrape'])
+            
             # Check if this is a CV/resume request - handle directly to avoid agent complexity
             is_cv_request = any(term in message.lower() for term in ['cv', 'resume', 'curriculum', 'vitae', 'pdf', 'document'])
             
-            if is_cv_request:
+            if is_url_request:
+                logger.info(f"Direct URL processing for session {session_id}")
+                try:
+                    # Handle URL analysis request directly
+                    web_scraping_tool = WebScrapingTool()
+                    
+                    # If URLs were found in message, use the first one
+                    if urls_in_message:
+                        url_to_analyze = urls_in_message[0]
+                    else:
+                        # Extract URL from message or use the whole message if it's a URL
+                        # Simple heuristic to find URL-like strings
+                        words = message.split()
+                        url_to_analyze = None
+                        for word in words:
+                            if any(domain in word.lower() for domain in ['github.com', 'http', 'www.']):
+                                url_to_analyze = word
+                                break
+                        
+                    if url_to_analyze:
+                        url_result = await web_scraping_tool._arun(url_to_analyze)
+                        result = {
+                            'output': url_result,
+                            'intermediate_steps': []
+                        }
+                    else:
+                        result = {
+                            'output': "I understand you want to analyze a URL, but I couldn't find a valid URL in your message. Please provide a URL like: https://github.com/username/repository",
+                            'intermediate_steps': []
+                        }
+                    
+                except Exception as e:
+                    logger.error(f"Direct URL processing error: {e}")
+                    result = {
+                        'output': f"I encountered an error analyzing the URL: {str(e)}. Please make sure the URL is accessible and try again.",
+                        'intermediate_steps': []
+                    }
+            elif is_cv_request:
                 logger.info(f"Direct CV processing for session {session_id}")
                 try:
                     # Handle CV request directly
