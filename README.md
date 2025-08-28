@@ -1,13 +1,23 @@
-# 🤖 AI Chatbot with Sentiment Analysis, Memory & Streamlit Frontend
+# 🤖 Advanced Agentic Chatbot
 
-This project is a **full-stack AI chatbot** built with:
+A comprehensive AI chatbot system with **RAG**, **Multi-LLM support**, **Sentiment Analysis**, and **LangChain Agents**.
 
-* **Backend** → FastAPI, PostgreSQL, SQLAlchemy (hosted on Railway or local).
-* **Frontend** → Streamlit (interactive UI for chatting with the bot).
-* **AI Stack** → LangChain Agent (with tools), OpenAI / Gemini LLMs, HuggingFace Transformers.
-* **Extra Intelligence** → Sentiment Analysis with NLTK (VADER).
+## ✨ Features
 
----
+### 🚀 **Core Capabilities**
+- **Multi-LLM Support**: OpenAI GPT, Google Gemini, HuggingFace models
+- **RAG System**: Document processing (PDF, DOCX, TXT), web scraping, vector embeddings
+- **Sentiment Analysis**: Advanced emotion detection using HuggingFace transformers
+- **LangChain Agents**: Intelligent agents with tools and reasoning
+- **Conversation Memory**: Persistent chat history with database storage
+- **Real-time Analytics**: Sentiment tracking, conversation insights
+
+### 🛠 **Technical Stack**
+- **Backend**: FastAPI, PostgreSQL, Redis, SQLAlchemy
+- **Frontend**: Streamlit with modern UI components
+- **AI/ML**: OpenAI, Gemini, HuggingFace, Sentence Transformers, FAISS
+- **Document Processing**: PyPDF2, python-docx, BeautifulSoup
+- **Vector Search**: FAISS for semantic similarity
 
 ## ✨ Features
 
