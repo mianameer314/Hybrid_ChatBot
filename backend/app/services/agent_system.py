@@ -300,25 +300,55 @@ class AgentSystem:
                 provider = await llm_manager.get_provider(llm_provider)
                 
                 # Create LangChain LLM wrapper
-                class LLMWrapper:
-                    def __init__(self, provider):
+                from langchain_core.language_models.llms import LLM
+                from langchain_core.outputs import LLMResult, Generation
+                from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+                from pydantic import Field
+                
+                class LLMWrapper(LLM):
+                    provider: Any = Field(exclude=True)
+                    
+                    def __init__(self, provider, **kwargs):
+                        super().__init__(**kwargs)
                         self.provider = provider
                     
-                    async def agenerate(self, messages, **kwargs):
-                        # Convert to message format
-                        formatted_messages = []
-                        for msg in messages:
-                            if hasattr(msg, 'content'):
-                                formatted_messages.append({
-                                    "role": msg.__class__.__name__.lower().replace('message', ''),
-                                    "content": msg.content
-                                })
-                        
-                        response = await self.provider.chat_completion(formatted_messages, **kwargs)
-                        return response
+                    @property
+                    def _llm_type(self) -> str:
+                        return "custom_wrapper"
                     
-                    def generate(self, messages, **kwargs):
-                        return asyncio.run(self.agenerate(messages, **kwargs))
+                    def _call(
+                        self,
+                        prompt: str,
+                        stop: Optional[List[str]] = None,
+                        run_manager: Optional[CallbackManagerForLLMRun] = None,
+                        **kwargs: Any,
+                    ) -> str:
+                        """Call the LLM with a prompt and return the response."""
+                        try:
+                            # Convert prompt to messages format for chat completion
+                            messages = [{"role": "user", "content": prompt}]
+                            response = asyncio.run(self.provider.chat_completion(messages, **kwargs))
+                            return response
+                        except Exception as e:
+                            logger.error(f"LLM call error: {e}")
+                            return f"Error: {str(e)}"
+                    
+                    async def _acall(
+                        self,
+                        prompt: str,
+                        stop: Optional[List[str]] = None,
+                        run_manager: Optional[CallbackManagerForLLMRun] = None,
+                        **kwargs: Any,
+                    ) -> str:
+                        """Async call the LLM with a prompt and return the response."""
+                        try:
+                            # Convert prompt to messages format for chat completion
+                            messages = [{"role": "user", "content": prompt}]
+                            response = await self.provider.chat_completion(messages, **kwargs)
+                            return response
+                        except Exception as e:
+                            logger.error(f"Async LLM call error: {e}")
+                            return f"Error: {str(e)}"
                 
                 llm_wrapper = LLMWrapper(provider)
                 
