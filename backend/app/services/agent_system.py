@@ -306,11 +306,10 @@ class AgentSystem:
                 from pydantic import Field
                 
                 class LLMWrapper(LLM):
-                    provider: Any = Field(exclude=True)
                     
                     def __init__(self, provider, **kwargs):
                         super().__init__(**kwargs)
-                        self.provider = provider
+                        object.__setattr__(self, 'provider', provider)
                     
                     @property
                     def _llm_type(self) -> str:
