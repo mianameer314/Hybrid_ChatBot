@@ -326,8 +326,11 @@ class AgentSystem:
                         try:
                             # Convert prompt to messages format for chat completion
                             messages = [{"role": "user", "content": prompt}]
-                            response = asyncio.run(self.provider.chat_completion(messages, **kwargs))
-                            return response
+                            # Use the fallback system
+                            result = asyncio.run(llm_manager.generate_response_with_fallback(
+                                messages, provider_name=None, **kwargs
+                            ))
+                            return result['response']
                         except Exception as e:
                             logger.error(f"LLM call error: {e}")
                             return f"Error: {str(e)}"
@@ -343,8 +346,11 @@ class AgentSystem:
                         try:
                             # Convert prompt to messages format for chat completion
                             messages = [{"role": "user", "content": prompt}]
-                            response = await self.provider.chat_completion(messages, **kwargs)
-                            return response
+                            # Use the fallback system
+                            result = await llm_manager.generate_response_with_fallback(
+                                messages, provider_name=None, **kwargs
+                            )
+                            return result['response']
                         except Exception as e:
                             logger.error(f"Async LLM call error: {e}")
                             return f"Error: {str(e)}"
@@ -370,8 +376,9 @@ class AgentSystem:
                     ),
                     verbose=settings.DEBUG,
                     handle_parsing_errors=True,
-                    max_iterations=3,
-                    max_execution_time=60
+                    max_iterations=2,  # Reduced from 3
+                    max_execution_time=30,  # Reduced from 60
+                    early_stopping_method="generate"  # Stop early if needed
                 )
                 
                 self.agents[agent_key] = agent_executor
@@ -402,8 +409,23 @@ class AgentSystem:
             if context:
                 input_data["context"] = json.dumps(context)
             
-            # Run agent
-            result = await asyncio.to_thread(agent.invoke, input_data)
+            # Run agent with timeout
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(agent.invoke, input_data),
+                    timeout=25  # 25 second timeout
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Agent timeout for session {session_id}")
+                # Fallback to direct LLM call
+                direct_result = await llm_manager.generate_response_with_fallback(
+                    messages=[{"role": "user", "content": message}],
+                    provider_name=llm_provider
+                )
+                result = {
+                    'output': f"{direct_result['response']}\n\n*Note: Used direct response due to agent timeout*",
+                    'intermediate_steps': []
+                }
             
             processing_time = (datetime.now() - start_time).total_seconds()
             
